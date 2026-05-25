@@ -182,6 +182,7 @@ html, body, [class*="css"] {
 """, unsafe_allow_html=True)
 
 
+#Loads the data from the Data folder
 @st.cache_data
 def load_data():
     files = glob.glob("Data/*.csv")
@@ -217,6 +218,7 @@ def load_data():
     return df
 
 
+#Loads the pretrained models from the Models folder 
 @st.cache_resource
 def load_models():
     models = {}
@@ -226,7 +228,7 @@ def load_models():
             models[stat] = joblib.load(path)
     return models
 
-
+#Features that we are predicting
 FEATURES = [
     "AgeSquared", "G", "GS", "MP",
     "FG", "FGA", "FG%", "3P", "3PA", "3P%",
@@ -245,6 +247,7 @@ def predict_row(models, row_df):
     return results
 
 
+#Shows the increase or decrease in each stat
 def delta_html(current, predicted):
     diff = predicted - current
     if diff > 0.05:
@@ -255,6 +258,8 @@ def delta_html(current, predicted):
         return f'<div class="stat-delta delta-neu">— {diff:+.1f}</div>'
 
 
+#Creates a chart for the change in points per game
+#Uses Matplotlib
 def ppg_chart(history_df, predicted_pts, player_name):
     """Return a matplotlib figure: dual-axis PPG history + age."""
     seasons = list(history_df["SeasonYear"].astype(str))
@@ -313,6 +318,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+#Loads models and data
 df = load_data()
 models = load_models()
 
@@ -340,6 +346,8 @@ if not matches:
                 unsafe_allow_html=True)
     st.stop()
 
+#Handles if there are multiple players with the either the same first name or last name
+#i.e. Josh Green, Josh Christopher, or Draymond Green, Jalen Green 
 if len(matches) > 1:
     player_name = st.selectbox("Multiple players found — select one:", matches)
 else:
