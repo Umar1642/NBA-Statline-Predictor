@@ -7,16 +7,10 @@ the players current seasons averages, their predicted seasons averages, a table 
 
 ## Data 
 The data is from:
-- https://www.basketball-reference.com/leagues/NBA_2025_per_game.html
-- https://www.basketball-reference.com/leagues/NBA_2024_per_game.html
-- https://www.basketball-reference.com/leagues/NBA_2023_per_game.html
-- https://www.basketball-reference.com/leagues/NBA_2022_per_game.html
-- https://www.basketball-reference.com/leagues/NBA_2021_per_game.html
-- https://www.basketball-reference.com/leagues/NBA_2020_per_game.html
+- Basketball Reference
 
 
-I copied and pasted it into a multiple CSV files, this way I could use pandas CSV reading functions
-
+I automated the process of fetching all the seasons data starting from the 2019-20 NBA Season, all the way up to the current NBA Season. 
 
 ### Libraries needed
 Here is a list of the libraries needed:
@@ -37,6 +31,12 @@ for app.py:
 - matplotlib.pyplot 
 - matplotlib.ticker 
 - numpy 
+
+for get_data.py:
+- datetime
+- pandas
+- os
+- glob
 
 
 *** IMPORTANT ***
