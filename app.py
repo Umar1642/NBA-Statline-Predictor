@@ -6,15 +6,17 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+import unicodedata
 
-# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="NBA Statline Predictor",
     page_icon="🏀",
     layout="wide",
 )
 
-# ── Custom CSS ─────────────────────────────────────────────────────────────────
+def normalize(text):
+    return unicodedata.normalize("NFD", text).encode("ascii", "ignore").decode("utf-8").lower()
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -30,7 +32,6 @@ html, body, [class*="css"] {
     background-color: #0d0d0d;
 }
 
-/* ── Header ── */
 .nba-header {
     text-align: center;
     padding: 2.5rem 0 1rem;
@@ -54,7 +55,6 @@ html, body, [class*="css"] {
     letter-spacing: 0.05em;
 }
 
-/* ── Search ── */
 .stTextInput > div > div > input {
     background-color: #1a1a1a !important;
     border: 1px solid #2e2e2e !important;
@@ -75,7 +75,6 @@ html, body, [class*="css"] {
     text-transform: uppercase !important;
 }
 
-/* ── Stat Cards ── */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -123,7 +122,6 @@ html, body, [class*="css"] {
 .delta-neg { color: #e05252; }
 .delta-neu { color: #888; }
 
-/* ── Section labels ── */
 .section-label {
     font-size: 0.72rem;
     letter-spacing: 0.16em;
@@ -142,7 +140,6 @@ html, body, [class*="css"] {
 }
 .section-label.blue span { background: #3a8cf5; }
 
-/* ── Player info bar ── */
 .player-bar {
     display: flex;
     align-items: baseline;
@@ -162,14 +159,12 @@ html, body, [class*="css"] {
     font-weight: 300;
 }
 
-/* ── Divider ── */
 .divider {
     border: none;
     border-top: 1px solid #1e1e1e;
     margin: 2rem 0;
 }
 
-/* ── Suggestion list ── */
 .suggestion-item {
     padding: 0.5rem 0.8rem;
     cursor: pointer;
@@ -178,7 +173,6 @@ html, body, [class*="css"] {
     font-size: 0.9rem;
 }
 
-/* ── No result ── */
 .no-result {
     text-align: center;
     padding: 4rem 0;
@@ -187,13 +181,12 @@ html, body, [class*="css"] {
     letter-spacing: 0.04em;
 }
 
-/* ── Matplotlib dark ── */
 .element-container { background: transparent !important; }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Load data ──────────────────────────────────────────────────────────────────
+#loads all data from the CSV files
 @st.cache_data
 def load_data():
     files = glob.glob("Data/*.csv")
@@ -215,17 +208,18 @@ def load_data():
     df["AgeSquared"] = df["Age"] ** 2
     df = df.sort_values(["Player", "SeasonYear"]).reset_index(drop=True)
 
-    # Lag / trend features
-    for stat in ["PTS", "TRB", "AST", "STL", "BLK"]:
-        df[f"Prev_{stat}"] = df.groupby("Player")[stat].shift(1)
-        df[f"{stat}_Change"] = df[stat] - df[f"Prev_{stat}"]
+    # Experience (0-indexed seasons played per player)
+    df["Experience"] = df.groupby("Player").cumcount()
 
-    df["PTS_Rolling3"] = df.groupby("Player")["PTS"].transform(
-        lambda x: x.rolling(3, min_periods=1).mean()
-    )
+    for stat in ["PTS", "TRB", "AST", "STL", "BLK", "MP"]:
+        grp = df.groupby("Player")[stat]
+        df[f"{stat}_Lag1"]    = grp.shift(1)
+        df[f"{stat}_Lag2"]    = grp.shift(2)
+        df[f"{stat}_Rolling3"] = grp.transform(lambda x: x.rolling(3, min_periods=1).mean())
+        df[f"{stat}_Change"]  = df[stat] - df[f"{stat}_Lag1"]
 
-    trend_cols = [c for c in df.columns if c.startswith("Prev_") or c.endswith("_Change")]
-    df[trend_cols] = df[trend_cols].fillna(0)
+    lag_cols = [c for c in df.columns if "_Lag" in c or "_Change" in c or "_Rolling3" in c]
+    df[lag_cols] = df[lag_cols].fillna(0)
 
     return df
 
@@ -240,22 +234,43 @@ def load_models():
     return models
 
 
-FEATURES = [
-    "AgeSquared", "G", "GS", "MP",
-    "FG", "FGA", "FG%", "3P", "3PA", "3P%",
-    "FT", "FTA", "FT%",
-    "TRB", "DRB", "ORB", "AST", "STL", "BLK", "TOV", "PTS",
-    "Prev_PTS", "Prev_TRB", "Prev_AST", "Prev_STL", "Prev_BLK",
-    "PTS_Change", "TRB_Change", "AST_Change", "STL_Change", "BLK_Change",
-    "PTS_Rolling3",
-]
+#features for each model for each stat
+FEATURES = {
+    "pts": [
+        "Age", "AgeSquared", "Experience", "MP", "PTS",
+        "FG", "FGA", "FG%", "3P", "3PA", "3P%", "FT", "FTA", "FT%",
+        "PTS_Lag1", "PTS_Lag2", "PTS_Rolling3", "PTS_Change",
+        "MP_Lag1", "MP_Lag2", "MP_Rolling3", "MP_Change",
+    ],
+    "trb": [
+        "Age", "AgeSquared", "Experience", "MP", "TRB", "ORB", "DRB",
+        "TRB_Lag1", "TRB_Lag2", "TRB_Rolling3", "TRB_Change",
+        "MP_Lag1", "MP_Lag2", "MP_Rolling3", "MP_Change",
+    ],
+    "ast": [
+        "Age", "AgeSquared", "Experience", "MP", "AST", "TOV",
+        "AST_Lag1", "AST_Lag2", "AST_Rolling3", "AST_Change",
+        "MP_Lag1", "MP_Lag2", "MP_Rolling3", "MP_Change",
+    ],
+    "stl": [
+        "Age", "AgeSquared", "Experience", "MP", "STL",
+        "STL_Lag1", "STL_Lag2", "STL_Rolling3", "STL_Change",
+        "MP_Lag1", "MP_Lag2", "MP_Rolling3", "MP_Change",
+    ],
+    "blk": [
+        "Age", "AgeSquared", "Experience", "MP", "BLK",
+        "BLK_Lag1", "BLK_Lag2", "BLK_Rolling3", "BLK_Change",
+        "MP_Lag1", "MP_Lag2", "MP_Rolling3", "MP_Change",
+    ],
+}
 
 
 def predict_row(models, row_df):
     results = {}
     for stat, model in models.items():
-        results[stat] = round(float(model.predict(row_df[FEATURES])[0]), 1)
+        results[stat] = round(float(model.predict(row_df[FEATURES[stat]])[0]), 1)
     return results
+
 
 
 def delta_html(current, predicted):
@@ -276,7 +291,7 @@ def ppg_chart(history_df, predicted_pts, player_name):
 
     is_active = predicted_pts is not None
 
-    # Append prediction point only for active players
+    #puts a prediction point if the player is active
     if is_active:
         next_year = str(history_df["SeasonYear"].max() + 1)
         seasons.append(next_year)
@@ -290,7 +305,7 @@ def ppg_chart(history_df, predicted_pts, player_name):
     ax1.set_facecolor("#0d0d0d")
 
     if is_active:
-        # PPG line (actual portion)
+        # PPG line
         ax1.plot(x[:-1], ppg[:-1], color="#f4572a", linewidth=2.5,
                  marker="o", markersize=5, zorder=3, label="PPG (actual)")
         # Predicted extension
@@ -332,7 +347,7 @@ def ppg_chart(history_df, predicted_pts, player_name):
     return fig
 
 
-# ── App layout ─────────────────────────────────────────────────────────────────
+#layout of the app
 st.markdown("""
 <div class="nba-header">
   <h1>NBA <span class="accent">STATLINE</span> PREDICTOR</h1>
@@ -351,7 +366,6 @@ if not models:
     st.error("⚠️ No trained model files found in `Models/`. Run `train.py` first.")
     st.stop()
 
-# Search box
 search = st.text_input("PLAYER NAME", placeholder="e.g. LeBron James, Nikola Jokić…")
 
 if not search.strip():
@@ -359,10 +373,10 @@ if not search.strip():
                 unsafe_allow_html=True)
     st.stop()
 
-# ── Match players ──────────────────────────────────────────────────────────────
+#matches the players
 all_players = sorted(df["Player"].unique())
-query = search.strip().lower()
-matches = [p for p in all_players if query in p.lower()]
+query = normalize(search.strip())
+matches = [p for p in all_players if query in normalize(p)]
 
 if not matches:
     st.markdown(f'<div class="no-result">No player found matching <b>"{search}"</b>.</div>',
@@ -375,18 +389,17 @@ if len(matches) > 1:
 else:
     player_name = matches[0]
 
-# ── Get player data ────────────────────────────────────────────────────────────
+#grabs the players data
 player_df = df[df["Player"] == player_name].sort_values("SeasonYear")
 latest = player_df.iloc[-1]
 
-# ── Retired check ──────────────────────────────────────────────────────────────
+#checks if player is retired
 latest_season_in_dataset = df["SeasonYear"].max()
 is_retired = int(latest["SeasonYear"]) < latest_season_in_dataset - 1
 
-# ── Predict (only for active players) ─────────────────────────────────────────
+#predicts for active players only
 preds = None if is_retired else predict_row(models, pd.DataFrame([latest]))
 
-# ── Player name + meta ─────────────────────────────────────────────────────────
 retired_badge = ' · <span style="color:#f4572a;font-size:0.75rem;letter-spacing:0.1em;">RETIRED</span>' if is_retired else ''
 st.markdown(f"""
 <div class="player-bar">
@@ -397,7 +410,7 @@ st.markdown(f"""
 
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-# ── Current season stats ───────────────────────────────────────────────────────
+#current season stats
 st.markdown('<div class="section-label"><span></span>Current Season Averages</div>',
             unsafe_allow_html=True)
 
@@ -418,7 +431,7 @@ for col, (key, (label, val)) in zip(cols, stats_map.items()):
             <div class="stat-value">{val:.1f}</div>
         </div>""", unsafe_allow_html=True)
 
-# ── Predicted stats ────────────────────────────────────────────────────────────
+#Predicted stats
 st.markdown('<br><div class="section-label blue"><span></span>Predicted Next Season</div>',
             unsafe_allow_html=True)
 
@@ -453,14 +466,14 @@ else:
 
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-# ── PPG + Age chart ────────────────────────────────────────────────────────────
+#chart for PPG and Age
 st.markdown('<div class="section-label"><span></span>Scoring History & Age Curve</div>',
             unsafe_allow_html=True)
 
 fig = ppg_chart(player_df, preds["pts"] if not is_retired else None, player_name)
 st.pyplot(fig, use_container_width=True)
 
-# ── Career table (expandable) ──────────────────────────────────────────────────
+#Career table
 with st.expander("📋 Full career stats table"):
     display_cols = ["Season", "Age", "Team", "G", "MP", "PTS", "TRB", "AST", "STL", "BLK",
                     "FG%", "3P%", "FT%"]
