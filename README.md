@@ -1,4 +1,4 @@
-# 2025-26 NBA Statline Predictor
+# NBA Statline Predictor
 
 This project uses Gradient Boosting, specifically XGBRegressor from the XGBoost library, 
 and predicts players statlines for the 2025-26 NBA season. This model uses historic data starting from the 2019-2020 NBA season all the way up to the 2024-2025 NBA Season. Specifically players points per game, rebounds per game, assists per game,
