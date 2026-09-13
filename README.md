@@ -40,5 +40,5 @@ for get_data.py:
 
 
 *** IMPORTANT ***
-Make sure that you download the entire folder, since the CSV file is required for the prediction, the models are also included 
+Make sure that you download the entire folder, since the CSV files is required for the prediction, the models are also included 
 in the folder, and the streamlit front end is also included in the folder.
