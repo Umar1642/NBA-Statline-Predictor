@@ -5,6 +5,8 @@ and predicts players statlines for the 2026-27 NBA season. This model uses histo
 steals per game, and blocks per game. To use my program, run the streamlit front end, where you can search for a players name and find 
 the players current seasons averages, their predicted seasons averages, a table with all their previous seasons averages, and a double line graph, that utilizes matplotlib, which shows their previous seasons points, predicted points, and their age.  
 
+To help you understand the flow of the program, I have added a diagram to the repo. Courtesy of https://gitdiagram.com/ 
+
 ## Data 
 The data is from:
 - Basketball Reference
